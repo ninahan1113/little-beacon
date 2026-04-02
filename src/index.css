@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mint: #a8e6cf;
+  --color-mint-light: #dcedc1;
+  --color-sky: #a8d8ea;
+  --color-sky-light: #c7ecee;
+  --color-warm: #ffd3b6;
+  --color-warm-light: #fff5e4;
+  --color-pink: #ffaaa5;
+  --color-pink-light: #ffd6d6;
+  --color-cream: #fefcf3;
+  --color-gem: #a78bfa;
+  --color-gem-glow: #c4b5fd;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+body {
+  background: linear-gradient(180deg, #e8f8f5 0%, #fefcf3 40%, #fff5e4 100%);
+  min-height: 100dvh;
+  margin: 0;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes gem-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.15); filter: brightness(1.2); }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-gem-pulse { animation: gem-pulse 2s ease-in-out infinite; }
+.animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+.animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+
+.task-path {
+  position: relative;
+}
+
+.task-path::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(90deg, #c4b5fd 0, #c4b5fd 12px, transparent 12px, transparent 20px);
+  border-radius: 3px;
+  transform: translateY(-50%);
+  z-index: 0;
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+.modal-overlay {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.35);
+}
