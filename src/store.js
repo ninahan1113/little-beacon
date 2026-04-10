@@ -110,9 +110,18 @@ export const useStore = create((set, get) => ({
     const cloud = await loadFromCloud()
     if (cloud) {
       set({ ...cloud, cloudReady: true })
-      saveLocal({ ...cloud }) // update local cache
+      saveLocal({ ...cloud })
     } else {
       set({ cloudReady: true })
+    }
+  },
+
+  // Sync: pull latest data from cloud (only updates data fields, not UI state)
+  syncFromCloud: async () => {
+    const cloud = await loadFromCloud()
+    if (cloud) {
+      set(cloud)
+      saveLocal(cloud)
     }
   },
 
@@ -231,3 +240,17 @@ export const useStore = create((set, get) => ({
 
 // Auto-init from cloud on app startup
 useStore.getState().initFromCloud()
+
+// Poll cloud every 5 seconds for cross-device sync
+setInterval(() => {
+  if (!document.hidden) {
+    useStore.getState().syncFromCloud()
+  }
+}, 5000)
+
+// Immediately sync when user switches back to the app/tab
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    useStore.getState().syncFromCloud()
+  }
+})
