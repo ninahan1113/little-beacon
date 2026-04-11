@@ -19,7 +19,6 @@ export default function ParentView() {
   const [pinSaved, setPinSaved] = useState(false)
 
   const pending = submissions.filter(s => !s.approved && !s.rejected)
-  const approved = submissions.filter(s => s.approved)
 
   const getTask = (taskId) => tasks.find(t => t.id === taskId)
 
@@ -103,30 +102,7 @@ export default function ParentView() {
           </div>
         )}
 
-        {/* Approved history */}
-        {approved.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-green-500 flex items-center gap-1 mb-3">
-              ✅ 已批准 ({approved.length})
-            </h3>
-            <div className="space-y-2">
-              {approved.slice().reverse().map(sub => {
-                const task = getTask(sub.taskId)
-                return (
-                  <div key={sub.id} className="bg-green-50 rounded-xl p-3 flex items-center gap-3">
-                    <span className="text-xl">{task?.icon}</span>
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-600">{task?.name}</span>
-                    </div>
-                    <span className="text-xs text-green-600 font-medium">+{task?.gems}💎</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Daily stats */}
+        {/* Daily stats (includes approved history) */}
         <DailyStats />
 
         {/* Task management */}

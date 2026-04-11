@@ -27,17 +27,16 @@ export default function DailyStats() {
 
   // Compute stats for selected date
   const stats = useMemo(() => {
-    const approvedOnDate = submissions.filter(s => {
-      if (!s.approved) return false
-      return s.timestamp.startsWith(selectedDate)
-    })
+    const approvedOnDate = submissions.filter(s =>
+      s.approved && s.timestamp?.startsWith(selectedDate)
+    )
 
     const gemsEarned = approvedOnDate.reduce((sum, s) => {
       const task = tasks.find(t => t.id === s.taskId)
       return sum + (task?.gems ?? 0)
     }, 0)
 
-    const redeemedOnDate = redeemedRewards.filter(r => r.timestamp.startsWith(selectedDate))
+    const redeemedOnDate = redeemedRewards.filter(r => r.timestamp?.startsWith(selectedDate))
     const gemsSpent = redeemedOnDate.reduce((sum, r) => {
       const reward = rewards.find(rw => rw.id === r.rewardId)
       return sum + (reward?.cost ?? 0)
@@ -54,19 +53,36 @@ export default function DailyStats() {
 
   const isToday = selectedDate === toDateStr(today)
 
+  const formatTime = (iso) => {
+    const d = new Date(iso)
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  }
+
+  // Count approved submissions per date for dot indicators
+  const dateCounts = useMemo(() => {
+    const counts = {}
+    submissions.forEach(s => {
+      if (s.approved && s.timestamp) {
+        const date = s.timestamp.slice(0, 10)
+        counts[date] = (counts[date] || 0) + 1
+      }
+    })
+    return counts
+  }, [submissions])
+
   return (
     <div className="mb-6">
       <h3 className="text-sm font-semibold text-blue-600 flex items-center gap-1 mb-3">
-        📅 每日统计
+        📅 每日记录
       </h3>
 
-      {/* Date selector - horizontal scroll */}
+      {/* Date selector */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
         {days.map(d => (
           <button
             key={d.date}
             onClick={() => setSelectedDate(d.date)}
-            className={`flex flex-col items-center shrink-0 w-12 py-2 rounded-xl text-xs font-medium transition-all ${
+            className={`flex flex-col items-center shrink-0 w-12 py-2 rounded-xl text-xs font-medium transition-all relative ${
               selectedDate === d.date
                 ? 'bg-blue-500 text-white shadow-md shadow-blue-200'
                 : d.isToday
@@ -76,6 +92,14 @@ export default function DailyStats() {
           >
             <span className="text-[10px] opacity-80">{d.weekday}</span>
             <span className="text-base font-bold">{d.day}</span>
+            {/* Activity dot */}
+            {dateCounts[d.date] > 0 && (
+              <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${
+                selectedDate === d.date ? 'bg-white text-blue-500' : 'bg-green-500 text-white'
+              }`}>
+                {dateCounts[d.date]}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -96,19 +120,26 @@ export default function DailyStats() {
         </div>
       </div>
 
-      {/* Detail list */}
+      {/* Approved task list */}
       {stats.tasksCompleted > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {stats.submissions.map(sub => {
             const task = tasks.find(t => t.id === sub.taskId)
-            const time = new Date(sub.timestamp)
-            const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`
             return (
-              <div key={sub.id} className="bg-white rounded-lg px-3 py-2 flex items-center gap-2 text-xs border border-gray-50">
-                <span>{task?.icon}</span>
-                <span className="flex-1 text-gray-600">{task?.name}</span>
-                <span className="text-gray-400">{timeStr}</span>
-                <span className="text-green-500 font-medium">+{task?.gems}💎</span>
+              <div key={sub.id} className="bg-green-50 rounded-xl p-3 flex items-center gap-3">
+                {/* Photo thumbnail or icon */}
+                {sub.photoUrl ? (
+                  <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
+                    <img src={sub.photoUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <span className="text-xl shrink-0">{task?.icon}</span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-600 truncate">{task?.name}</div>
+                  <div className="text-[10px] text-gray-400">{formatTime(sub.timestamp)}</div>
+                </div>
+                <span className="text-xs text-green-600 font-bold shrink-0">+{task?.gems}💎</span>
               </div>
             )
           })}
@@ -116,6 +147,24 @@ export default function DailyStats() {
       ) : (
         <div className="text-center py-4 text-gray-300 text-xs">
           {isToday ? '今天还没有完成任务哦～' : '当天没有完成记录'}
+        </div>
+      )}
+
+      {/* Redeemed rewards */}
+      {stats.redeemed.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <div className="text-xs text-pink-500 font-medium mb-1">🎁 兑换记录</div>
+          {stats.redeemed.map((r, i) => {
+            const reward = rewards.find(rw => rw.id === r.rewardId)
+            return (
+              <div key={i} className="bg-pink-50 rounded-lg px-3 py-2 flex items-center gap-2 text-xs">
+                <span>{reward?.icon}</span>
+                <span className="flex-1 text-gray-600">{reward?.name}</span>
+                <span className="text-[10px] text-gray-400">{formatTime(r.timestamp)}</span>
+                <span className="text-pink-500 font-medium">-{reward?.cost}💎</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
