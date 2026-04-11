@@ -111,19 +111,36 @@ const applyDailyReset = (data) => {
 
   // Clean old approved submissions (older than 7 days) to prevent infinite growth
   const cleanedSubmissions = data.submissions.filter(s => {
-    if (s.approved && s.timestamp < sevenDaysAgo) return false // drop old approved
-    return true // keep pending + recent approved
+    if (s.approved && s.timestamp < sevenDaysAgo) return false
+    return true
   })
 
-  if (data.lastActiveDate && data.lastActiveDate !== today) {
+  // Check if completedToday actually contains today's completions
+  // by verifying approved submissions are from today
+  const todayApprovedTaskIds = cleanedSubmissions
+    .filter(s => s.approved && s.timestamp && s.timestamp.startsWith(today))
+    .map(s => s.taskId)
+
+  // If date changed OR completedToday has stale entries not from today, reset
+  const hasStaleCompletions = data.completedToday.length > 0 && todayApprovedTaskIds.length === 0
+  const dateChanged = data.lastActiveDate && data.lastActiveDate !== today
+
+  if (dateChanged || hasStaleCompletions) {
     return {
       ...data,
-      completedToday: [],
-      submissions: cleanedSubmissions.filter(s => !s.approved), // keep only pending on new day
+      completedToday: todayApprovedTaskIds, // only keep genuinely today's completions
+      submissions: cleanedSubmissions.filter(s => !s.approved || s.timestamp?.startsWith(today)),
       lastActiveDate: today,
     }
   }
-  return { ...data, submissions: cleanedSubmissions, lastActiveDate: today }
+
+  // Even on same day, make sure completedToday matches actual approved submissions
+  return {
+    ...data,
+    completedToday: todayApprovedTaskIds,
+    submissions: cleanedSubmissions,
+    lastActiveDate: today,
+  }
 }
 
 // P0 Fix #3: Merge strategy - combine local pending changes with cloud data
