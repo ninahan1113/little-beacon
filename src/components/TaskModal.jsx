@@ -15,11 +15,38 @@ export default function TaskModal() {
     fileRef.current?.click()
   }
 
-  const handleFileChange = (e) => {
+  const [uploading, setUploading] = useState(false)
+
+  // Convert photo to compressed base64 for cross-device persistence
+  const compressAndConvert = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const maxSize = 480 // compress to max 480px
+          let w = img.width, h = img.height
+          if (w > h) { if (w > maxSize) { h = (h * maxSize) / w; w = maxSize } }
+          else { if (h > maxSize) { w = (w * maxSize) / h; h = maxSize } }
+          canvas.width = w
+          canvas.height = h
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL('image/jpeg', 0.6)) // ~30-80KB
+        }
+        img.src = e.target.result
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      const url = URL.createObjectURL(file)
-      setPhoto(url)
+      setUploading(true)
+      const base64 = await compressAndConvert(file)
+      setPhoto(base64)
+      setUploading(false)
     }
   }
 
@@ -105,11 +132,21 @@ export default function TaskModal() {
               ) : (
                 <button
                   onClick={handleCapture}
+                  disabled={uploading}
                   className="w-full border-2 border-dashed border-purple-200 rounded-2xl py-8 flex flex-col items-center gap-2 hover:border-purple-300 hover:bg-purple-50/50 transition-all active:scale-98 mb-4"
                 >
-                  <span className="text-4xl">📸</span>
-                  <span className="text-sm font-medium text-purple-500">拍照打卡</span>
-                  <span className="text-xs text-gray-400">点击拍照或上传图片</span>
+                  {uploading ? (
+                    <>
+                      <span className="text-4xl animate-pulse">⏳</span>
+                      <span className="text-sm font-medium text-purple-500">处理中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-4xl">📸</span>
+                      <span className="text-sm font-medium text-purple-500">拍照打卡</span>
+                      <span className="text-xs text-gray-400">点击拍照或上传图片</span>
+                    </>
+                  )}
                 </button>
               )}
 

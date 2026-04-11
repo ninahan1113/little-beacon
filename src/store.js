@@ -18,6 +18,12 @@ const REWARDS = [
 const TASK_COLORS = ['#a8e6cf', '#a8d8ea', '#ffd3b6', '#ffaaa5', '#c4b5fd', '#fbbf24', '#f9a8d4', '#86efac']
 const REWARD_COLORS = ['#a8d8ea', '#a8e6cf', '#ffd3b6', '#c4b5fd', '#ffaaa5', '#fbbf24', '#f9a8d4', '#86efac']
 
+// ---- Helpers ----
+
+const todayStr = () => new Date().toISOString().slice(0, 10) // "2026-04-10"
+
+const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
 // ---- Persistence: Supabase (primary) + localStorage (fallback/cache) ----
 
 const loadLocal = () => {
@@ -33,13 +39,17 @@ const saveLocal = (state) => {
     localStorage.setItem('little-beacon-state', JSON.stringify({
       tasks: state.tasks, rewards: state.rewards, gems: state.gems,
       submissions: state.submissions, completedToday: state.completedToday,
-      redeemedRewards: state.redeemedRewards,
+      redeemedRewards: state.redeemedRewards, lastActiveDate: state.lastActiveDate,
     }))
   } catch {}
 }
 
+// Track whether we're currently saving to avoid sync overwriting local changes
+let isSaving = false
+
 const saveToCloud = async (state) => {
-  saveLocal(state) // always cache locally
+  saveLocal(state)
+  isSaving = true
   try {
     await supabase.from('app_state').update({
       gems: state.gems,
@@ -48,11 +58,13 @@ const saveToCloud = async (state) => {
       submissions: state.submissions,
       completed_today: state.completedToday,
       redeemed_rewards: state.redeemedRewards,
+      last_active_date: state.lastActiveDate,
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
   } catch (err) {
     console.warn('Cloud save failed, data cached locally:', err)
   }
+  isSaving = false
 }
 
 const loadFromCloud = async () => {
@@ -71,6 +83,8 @@ const loadFromCloud = async () => {
         submissions: data.submissions ?? [],
         completedToday: data.completed_today ?? [],
         redeemedRewards: data.redeemed_rewards ?? [],
+        lastActiveDate: data.last_active_date ?? todayStr(),
+        _updatedAt: data.updated_at ?? null,
       }
     }
   } catch (err) {
@@ -79,12 +93,53 @@ const loadFromCloud = async () => {
   return null
 }
 
-// Debounce cloud saves to avoid too many requests
+// Debounce cloud saves
 let saveTimer = null
 const debouncedSaveToCloud = (state) => {
   saveLocal(state)
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => saveToCloud(state), 500)
+}
+
+// P0 Fix #1: Auto daily reset - check if date changed and reset completedToday
+const applyDailyReset = (data) => {
+  const today = todayStr()
+  if (data.lastActiveDate && data.lastActiveDate !== today) {
+    return {
+      ...data,
+      completedToday: [],
+      submissions: data.submissions.filter(s => !s.approved), // keep only pending
+      lastActiveDate: today,
+    }
+  }
+  return { ...data, lastActiveDate: today }
+}
+
+// P0 Fix #3: Merge strategy - combine local pending changes with cloud data
+const mergeStates = (local, cloud) => {
+  if (!cloud) return local
+  if (!local) return cloud
+
+  // Merge submissions: combine both, deduplicate by id
+  const allSubs = [...cloud.submissions]
+  const cloudSubIds = new Set(cloud.submissions.map(s => s.id))
+  for (const localSub of local.submissions) {
+    if (!cloudSubIds.has(localSub.id)) {
+      allSubs.push(localSub) // local-only submission, keep it
+    }
+  }
+
+  // For gems/tasks/rewards - trust cloud as source of truth
+  // But if cloud submission was approved and local wasn't, use cloud version
+  return {
+    gems: cloud.gems,
+    tasks: cloud.tasks,
+    rewards: cloud.rewards,
+    submissions: allSubs,
+    completedToday: [...new Set([...cloud.completedToday, ...local.completedToday])],
+    redeemedRewards: cloud.redeemedRewards,
+    lastActiveDate: cloud.lastActiveDate,
+  }
 }
 
 const local = loadLocal()
@@ -97,6 +152,7 @@ export const useStore = create((set, get) => ({
   submissions: local?.submissions ?? [],
   completedToday: local?.completedToday ?? [],
   redeemedRewards: local?.redeemedRewards ?? [],
+  lastActiveDate: local?.lastActiveDate ?? todayStr(),
   cloudReady: false,
 
   // UI state
@@ -105,23 +161,31 @@ export const useStore = create((set, get) => ({
   showConfetti: false,
   parentUnlocked: false,
 
-  // Init: load from cloud on startup
+  // Init: load from cloud on startup, apply daily reset
   initFromCloud: async () => {
     const cloud = await loadFromCloud()
-    if (cloud) {
-      set({ ...cloud, cloudReady: true })
-      saveLocal({ ...cloud })
-    } else {
-      set({ cloudReady: true })
+    const localData = get()
+    const merged = cloud ? mergeStates(localData, cloud) : localData
+    const withReset = applyDailyReset(merged)
+    set({ ...withReset, cloudReady: true })
+    saveLocal(withReset)
+    // If daily reset happened, push to cloud
+    if (withReset.lastActiveDate !== merged.lastActiveDate ||
+        withReset.completedToday.length !== merged.completedToday.length) {
+      saveToCloud(withReset)
     }
   },
 
-  // Sync: pull latest data from cloud (only updates data fields, not UI state)
+  // Sync: pull latest, merge, apply daily reset - skip if we're saving
   syncFromCloud: async () => {
+    if (isSaving) return // don't overwrite during a save
     const cloud = await loadFromCloud()
     if (cloud) {
-      set(cloud)
-      saveLocal(cloud)
+      const localData = get()
+      const merged = mergeStates(localData, cloud)
+      const withReset = applyDailyReset(merged)
+      set(withReset)
+      saveLocal(withReset)
     }
   },
 
@@ -133,7 +197,7 @@ export const useStore = create((set, get) => ({
   submitTask: (taskId, photoUrl) => {
     set((state) => ({
       submissions: [...state.submissions, {
-        id: Date.now(), taskId, photoUrl,
+        id: genId(), taskId, photoUrl,
         timestamp: new Date().toISOString(), approved: false,
       }],
     }))
@@ -175,7 +239,7 @@ export const useStore = create((set, get) => ({
   addReward: ({ name, icon, cost }) => {
     set((state) => ({
       rewards: [...state.rewards, {
-        id: Date.now(), name, icon,
+        id: genId(), name, icon,
         cost: Number(cost) || 10,
         color: REWARD_COLORS[state.rewards.length % REWARD_COLORS.length],
       }],
@@ -200,7 +264,7 @@ export const useStore = create((set, get) => ({
   addTask: ({ name, icon, description, gems }) => {
     set((state) => ({
       tasks: [...state.tasks, {
-        id: Date.now(), name, icon, description,
+        id: genId(), name, icon, description,
         gems: Number(gems) || 10,
         color: TASK_COLORS[state.tasks.length % TASK_COLORS.length],
       }],
@@ -232,7 +296,8 @@ export const useStore = create((set, get) => ({
   resetDay: () => {
     set((state) => ({
       completedToday: [],
-      submissions: state.submissions.filter(s => s.approved),
+      submissions: state.submissions.filter(s => !s.approved),
+      lastActiveDate: todayStr(),
     }))
     setTimeout(() => debouncedSaveToCloud(get()), 0)
   },
