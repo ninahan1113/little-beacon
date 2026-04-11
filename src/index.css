@@ -82,3 +82,11 @@ body {
   backdrop-filter: blur(8px);
   background: rgba(0, 0, 0, 0.35);
 }
+
+/* PWA safe area support for notch/status bar */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
