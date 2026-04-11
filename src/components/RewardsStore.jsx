@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { playGem } from '../sounds'
 
 export default function RewardsStore() {
   const rewards = useStore(s => s.rewards)
@@ -11,6 +12,7 @@ export default function RewardsStore() {
   const handleRedeem = (reward) => {
     if (gems < reward.cost) return
     redeemReward(reward.id)
+    playGem()
     setConfirmId(null)
     setRedeemed(reward.id)
     setTimeout(() => setRedeemed(null), 2000)

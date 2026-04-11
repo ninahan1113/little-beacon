@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { playCelebration } from '../sounds'
 import DailyStats from './DailyStats'
 import TaskManager from './TaskManager'
 import RewardManager from './RewardManager'
@@ -88,7 +89,7 @@ export default function ParentView() {
                           ✋ 退回重做
                         </button>
                         <button
-                          onClick={() => approveSubmission(sub.id)}
+                          onClick={() => { approveSubmission(sub.id); playCelebration() }}
                           className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition-opacity active:scale-98 shadow-md shadow-green-200"
                         >
                           👍 批准 (+{task?.gems}💎)

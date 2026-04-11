@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useStore } from '../store'
+import { playShutter, playSuccess } from '../sounds'
 
 export default function TaskModal() {
   const selectedTask = useStore(s => s.selectedTask)
@@ -43,6 +44,7 @@ export default function TaskModal() {
     const file = e.target.files?.[0]
     if (file) {
       setUploading(true)
+      playShutter()
       const base64 = await compressAndConvert(file)
       setPhoto(base64)
       setUploading(false)
@@ -51,6 +53,7 @@ export default function TaskModal() {
 
   const handleSubmit = () => {
     submitTask(selectedTask.id, photo)
+    playSuccess()
     setSubmitted(true)
     setTimeout(() => {
       setPhoto(null)

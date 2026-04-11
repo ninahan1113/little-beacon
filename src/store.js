@@ -331,14 +331,19 @@ export const useStore = create((set, get) => ({
 // Auto-init from cloud on app startup
 useStore.getState().initFromCloud()
 
-// Poll cloud every 5 seconds for cross-device sync
-setInterval(() => {
-  if (!document.hidden) {
-    useStore.getState().syncFromCloud()
-  }
-}, 5000)
+// Supabase Realtime: subscribe to changes on app_state table
+// This replaces the 5-second polling with instant push updates
+supabase
+  .channel('app_state_changes')
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_state' }, () => {
+    // Only sync if we didn't just save (avoid echo)
+    if (!isSaving) {
+      useStore.getState().syncFromCloud()
+    }
+  })
+  .subscribe()
 
-// Immediately sync when user switches back to the app/tab
+// Fallback: sync when user switches back to the app/tab (in case realtime missed)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     useStore.getState().syncFromCloud()
