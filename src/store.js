@@ -40,6 +40,7 @@ const saveLocal = (state) => {
       tasks: state.tasks, rewards: state.rewards, gems: state.gems,
       submissions: state.submissions, completedToday: state.completedToday,
       redeemedRewards: state.redeemedRewards, lastActiveDate: state.lastActiveDate,
+      parentPin: state.parentPin,
     }))
   } catch {}
 }
@@ -59,6 +60,7 @@ const saveToCloud = async (state) => {
       completed_today: state.completedToday,
       redeemed_rewards: state.redeemedRewards,
       last_active_date: state.lastActiveDate,
+      parent_pin: state.parentPin,
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
   } catch (err) {
@@ -84,6 +86,7 @@ const loadFromCloud = async () => {
         completedToday: data.completed_today ?? [],
         redeemedRewards: data.redeemed_rewards ?? [],
         lastActiveDate: data.last_active_date ?? todayStr(),
+        parentPin: data.parent_pin ?? '1234',
         _updatedAt: data.updated_at ?? null,
       }
     }
@@ -101,18 +104,26 @@ const debouncedSaveToCloud = (state) => {
   saveTimer = setTimeout(() => saveToCloud(state), 500)
 }
 
-// P0 Fix #1: Auto daily reset - check if date changed and reset completedToday
+// Auto daily reset + cleanup old submissions (keep 7 days)
 const applyDailyReset = (data) => {
   const today = todayStr()
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+
+  // Clean old approved submissions (older than 7 days) to prevent infinite growth
+  const cleanedSubmissions = data.submissions.filter(s => {
+    if (s.approved && s.timestamp < sevenDaysAgo) return false // drop old approved
+    return true // keep pending + recent approved
+  })
+
   if (data.lastActiveDate && data.lastActiveDate !== today) {
     return {
       ...data,
       completedToday: [],
-      submissions: data.submissions.filter(s => !s.approved), // keep only pending
+      submissions: cleanedSubmissions.filter(s => !s.approved), // keep only pending on new day
       lastActiveDate: today,
     }
   }
-  return { ...data, lastActiveDate: today }
+  return { ...data, submissions: cleanedSubmissions, lastActiveDate: today }
 }
 
 // P0 Fix #3: Merge strategy - combine local pending changes with cloud data
@@ -139,6 +150,7 @@ const mergeStates = (local, cloud) => {
     completedToday: [...new Set([...cloud.completedToday, ...local.completedToday])],
     redeemedRewards: cloud.redeemedRewards,
     lastActiveDate: cloud.lastActiveDate,
+    parentPin: cloud.parentPin ?? local.parentPin ?? '1234',
   }
 }
 
@@ -153,6 +165,7 @@ export const useStore = create((set, get) => ({
   completedToday: local?.completedToday ?? [],
   redeemedRewards: local?.redeemedRewards ?? [],
   lastActiveDate: local?.lastActiveDate ?? todayStr(),
+  parentPin: local?.parentPin ?? '1234',
   cloudReady: false,
 
   // UI state
@@ -222,6 +235,13 @@ export const useStore = create((set, get) => ({
     setTimeout(() => set({ showConfetti: false }), 4000)
   },
 
+  rejectSubmission: (submissionId) => {
+    set((state) => ({
+      submissions: state.submissions.filter(s => s.id !== submissionId),
+    }))
+    setTimeout(() => debouncedSaveToCloud(get()), 0)
+  },
+
   redeemReward: (rewardId) => {
     set((state) => {
       const reward = state.rewards.find(r => r.id === rewardId)
@@ -287,6 +307,11 @@ export const useStore = create((set, get) => ({
       submissions: state.submissions.filter(s => s.taskId !== taskId),
       completedToday: state.completedToday.filter(id => id !== taskId),
     }))
+    setTimeout(() => debouncedSaveToCloud(get()), 0)
+  },
+
+  setParentPin: (newPin) => {
+    set({ parentPin: newPin })
     setTimeout(() => debouncedSaveToCloud(get()), 0)
   },
 

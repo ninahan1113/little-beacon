@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore } from '../store'
 import DailyStats from './DailyStats'
 import TaskManager from './TaskManager'
@@ -7,9 +8,16 @@ export default function ParentView() {
   const tasks = useStore(s => s.tasks)
   const submissions = useStore(s => s.submissions)
   const approveSubmission = useStore(s => s.approveSubmission)
+  const rejectSubmission = useStore(s => s.rejectSubmission)
   const gems = useStore(s => s.gems)
+  const parentPin = useStore(s => s.parentPin)
+  const setParentPin = useStore(s => s.setParentPin)
 
-  const pending = submissions.filter(s => !s.approved)
+  const [showPinChange, setShowPinChange] = useState(false)
+  const [newPin, setNewPin] = useState('')
+  const [pinSaved, setPinSaved] = useState(false)
+
+  const pending = submissions.filter(s => !s.approved && !s.rejected)
   const approved = submissions.filter(s => s.approved)
 
   const getTask = (taskId) => tasks.find(t => t.id === taskId)
@@ -17,6 +25,15 @@ export default function ParentView() {
   const formatTime = (iso) => {
     const d = new Date(iso)
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  }
+
+  const handlePinSave = () => {
+    if (newPin.length === 4) {
+      setParentPin(newPin)
+      setNewPin('')
+      setPinSaved(true)
+      setTimeout(() => setPinSaved(false), 2000)
+    }
   }
 
   return (
@@ -63,12 +80,20 @@ export default function ParentView() {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => approveSubmission(sub.id)}
-                        className="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition-opacity active:scale-98 shadow-md shadow-green-200"
-                      >
-                        👍 点赞批准 (+{task?.gems}💎)
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => rejectSubmission(sub.id)}
+                          className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl text-sm hover:bg-red-50 hover:text-red-500 transition-colors active:scale-98"
+                        >
+                          ✋ 退回重做
+                        </button>
+                        <button
+                          onClick={() => approveSubmission(sub.id)}
+                          className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition-opacity active:scale-98 shadow-md shadow-green-200"
+                        >
+                          👍 批准 (+{task?.gems}💎)
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -99,6 +124,7 @@ export default function ParentView() {
             </div>
           </div>
         )}
+
         {/* Daily stats */}
         <DailyStats />
 
@@ -107,6 +133,61 @@ export default function ParentView() {
 
         {/* Reward management */}
         <RewardManager />
+
+        {/* Password settings */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-500 flex items-center gap-1">
+              🔒 密码设置
+            </h3>
+            {!showPinChange && (
+              <button
+                onClick={() => setShowPinChange(true)}
+                className="text-xs bg-gray-200 text-gray-600 px-3 py-1.5 rounded-full font-medium hover:bg-gray-300 transition-colors"
+              >
+                修改密码
+              </button>
+            )}
+          </div>
+
+          {showPinChange && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 animate-slide-up">
+              <p className="text-xs text-gray-500 mb-2">当前密码：{parentPin}</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  value={newPin}
+                  onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="输入4位新密码"
+                  className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-center tracking-widest focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100"
+                />
+                <button
+                  onClick={handlePinSave}
+                  disabled={newPin.length !== 4}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    newPin.length === 4
+                      ? 'bg-purple-500 text-white hover:bg-purple-600'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => { setShowPinChange(false); setNewPin('') }}
+                  className="px-3 py-2 rounded-xl text-sm text-gray-500 bg-gray-100 hover:bg-gray-200"
+                >
+                  取消
+                </button>
+              </div>
+              {pinSaved && (
+                <p className="text-green-500 text-xs mt-2 animate-pop-in">✅ 密码已更新！</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

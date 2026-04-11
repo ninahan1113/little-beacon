@@ -6,10 +6,12 @@ export default function RewardsStore() {
   const gems = useStore(s => s.gems)
   const redeemReward = useStore(s => s.redeemReward)
   const [redeemed, setRedeemed] = useState(null)
+  const [confirmId, setConfirmId] = useState(null) // P1: confirmation dialog
 
   const handleRedeem = (reward) => {
     if (gems < reward.cost) return
     redeemReward(reward.id)
+    setConfirmId(null)
     setRedeemed(reward.id)
     setTimeout(() => setRedeemed(null), 2000)
   }
@@ -31,12 +33,15 @@ export default function RewardsStore() {
           {rewards.map(reward => {
             const canAfford = gems >= reward.cost
             const justRedeemed = redeemed === reward.id
+            const isConfirming = confirmId === reward.id
             return (
               <div
                 key={reward.id}
                 className={`bg-white rounded-2xl p-4 shadow-sm border-2 transition-all ${
                   justRedeemed
                     ? 'border-green-300 bg-green-50'
+                    : isConfirming
+                    ? 'border-yellow-300 bg-yellow-50'
                     : canAfford
                     ? 'border-purple-100 hover:border-purple-200 hover:shadow-md'
                     : 'border-gray-100 opacity-60'
@@ -67,9 +72,29 @@ export default function RewardsStore() {
                   <div className="text-center py-2 animate-pop-in">
                     <span className="text-sm font-bold text-green-600">兑换成功！</span>
                   </div>
+                ) : isConfirming ? (
+                  <div className="space-y-2 animate-pop-in">
+                    <p className="text-xs text-center text-yellow-700 font-medium">
+                      确定花 {reward.cost}💎 兑换吗？
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="flex-1 py-2 rounded-xl text-xs font-medium bg-gray-100 text-gray-500 active:scale-95"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={() => handleRedeem(reward)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white active:scale-95"
+                      >
+                        确定！
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <button
-                    onClick={() => handleRedeem(reward)}
+                    onClick={() => canAfford && setConfirmId(reward.id)}
                     disabled={!canAfford}
                     className={`w-full py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
                       canAfford

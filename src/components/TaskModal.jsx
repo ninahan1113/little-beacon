@@ -7,6 +7,7 @@ export default function TaskModal() {
   const submitTask = useStore(s => s.submitTask)
   const [photo, setPhoto] = useState(null)
   const [submitted, setSubmitted] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
 
   if (!selectedTask) return null
@@ -14,8 +15,6 @@ export default function TaskModal() {
   const handleCapture = () => {
     fileRef.current?.click()
   }
-
-  const [uploading, setUploading] = useState(false)
 
   // Convert photo to compressed base64 for cross-device persistence
   const compressAndConvert = (file) => {

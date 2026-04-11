@@ -4,20 +4,9 @@ import { useStore } from '../store'
 export default function ParentLogin() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
+  const parentPin = useStore(s => s.parentPin)
   const unlockParent = useStore(s => s.unlockParent)
   const setView = useStore(s => s.setView)
-
-  const handleSubmit = () => {
-    if (pin === '1234') {
-      unlockParent()
-      setView('parents')
-      setPin('')
-      setError(false)
-    } else {
-      setError(true)
-      setPin('')
-    }
-  }
 
   const handleDigit = (d) => {
     if (pin.length < 4) {
@@ -26,7 +15,7 @@ export default function ParentLogin() {
       setError(false)
       if (newPin.length === 4) {
         setTimeout(() => {
-          if (newPin === '1234') {
+          if (newPin === (parentPin || '1234')) {
             unlockParent()
             setView('parents')
             setPin('')
@@ -45,7 +34,6 @@ export default function ParentLogin() {
         <div className="text-5xl mb-4">🔐</div>
         <h2 className="text-xl font-bold text-gray-700 mb-2">家长验证</h2>
         <p className="text-sm text-gray-400 mb-8">请输入4位密码进入家长模式</p>
-        <p className="text-xs text-gray-300 mb-6">（默认密码：1234）</p>
 
         {/* PIN dots */}
         <div className="flex gap-3 justify-center mb-8">
