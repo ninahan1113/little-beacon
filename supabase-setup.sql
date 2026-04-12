@@ -28,6 +28,10 @@ values (1, 0,
   '[]', '[]', '[]'
 );
 
+-- 连续打卡字段（如果表已存在，手动执行以下两行）
+-- ALTER TABLE app_state ADD COLUMN streak_days int DEFAULT 0;
+-- ALTER TABLE app_state ADD COLUMN last_streak_date text DEFAULT '';
+
 -- 开启 RLS 并允许所有人读写（家庭内部使用，简单策略）
 alter table app_state enable row level security;
 

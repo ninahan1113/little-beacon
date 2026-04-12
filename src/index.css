@@ -53,10 +53,16 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-gem-pulse { animation: gem-pulse 2s ease-in-out infinite; }
 .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 .animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+.animate-bounce-slow { animation: bounce-slow 1.5s ease-in-out infinite; }
 
 .task-path {
   position: relative;

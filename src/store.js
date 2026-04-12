@@ -41,6 +41,7 @@ const saveLocal = (state) => {
       submissions: state.submissions, completedToday: state.completedToday,
       redeemedRewards: state.redeemedRewards, lastActiveDate: state.lastActiveDate,
       parentPin: state.parentPin,
+      streakDays: state.streakDays, lastStreakDate: state.lastStreakDate,
     }))
   } catch {}
 }
@@ -61,6 +62,8 @@ const saveToCloud = async (state) => {
       redeemed_rewards: state.redeemedRewards,
       last_active_date: state.lastActiveDate,
       parent_pin: state.parentPin,
+      streak_days: state.streakDays,
+      last_streak_date: state.lastStreakDate,
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
   } catch (err) {
@@ -87,6 +90,8 @@ const loadFromCloud = async () => {
         redeemedRewards: data.redeemed_rewards ?? [],
         lastActiveDate: data.last_active_date ?? todayStr(),
         parentPin: data.parent_pin ?? '1234',
+        streakDays: data.streak_days ?? 0,
+        lastStreakDate: data.last_streak_date ?? '',
         _updatedAt: data.updated_at ?? null,
       }
     }
@@ -102,6 +107,22 @@ const debouncedSaveToCloud = (state) => {
   saveLocal(state)
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => saveToCloud(state), 500)
+}
+
+// Streak milestones: days → bonus gems
+const STREAK_MILESTONES = [
+  { days: 3, bonus: 5 },
+  { days: 7, bonus: 15 },
+  { days: 14, bonus: 30 },
+  { days: 30, bonus: 50 },
+]
+
+// Check if dateB is the day after dateA (both "YYYY-MM-DD" strings)
+const isConsecutiveDay = (dateA, dateB) => {
+  if (!dateA || !dateB) return false
+  const a = new Date(dateA + 'T00:00:00')
+  const b = new Date(dateB + 'T00:00:00')
+  return b - a === 86400000
 }
 
 // Auto daily reset + cleanup old submissions (keep 7 days)
@@ -125,21 +146,32 @@ const applyDailyReset = (data) => {
   const hasStaleCompletions = data.completedToday.length > 0 && todayApprovedTaskIds.length === 0
   const dateChanged = data.lastActiveDate && data.lastActiveDate !== today
 
+  // Streak: if date changed and last streak date is not today or yesterday, reset
+  let streakDays = data.streakDays ?? 0
+  let lastStreakDate = data.lastStreakDate ?? ''
+  if (dateChanged && lastStreakDate && lastStreakDate !== today && !isConsecutiveDay(lastStreakDate, today)) {
+    streakDays = 0
+    lastStreakDate = ''
+  }
+
   if (dateChanged || hasStaleCompletions) {
     return {
       ...data,
       completedToday: todayApprovedTaskIds,
-      submissions: cleanedSubmissions, // keep all submissions within 7 days for history
+      submissions: cleanedSubmissions,
       lastActiveDate: today,
+      streakDays,
+      lastStreakDate,
     }
   }
 
-  // Even on same day, make sure completedToday matches actual approved submissions
   return {
     ...data,
     completedToday: todayApprovedTaskIds,
     submissions: cleanedSubmissions,
     lastActiveDate: today,
+    streakDays,
+    lastStreakDate,
   }
 }
 
@@ -168,6 +200,8 @@ const mergeStates = (local, cloud) => {
     redeemedRewards: cloud.redeemedRewards,
     lastActiveDate: cloud.lastActiveDate,
     parentPin: cloud.parentPin ?? local.parentPin ?? '1234',
+    streakDays: cloud.streakDays ?? local.streakDays ?? 0,
+    lastStreakDate: cloud.lastStreakDate ?? local.lastStreakDate ?? '',
   }
 }
 
@@ -183,6 +217,9 @@ export const useStore = create((set, get) => ({
   redeemedRewards: local?.redeemedRewards ?? [],
   lastActiveDate: local?.lastActiveDate ?? todayStr(),
   parentPin: local?.parentPin ?? '1234',
+  streakDays: local?.streakDays ?? 0,
+  lastStreakDate: local?.lastStreakDate ?? '',
+  streakMilestone: null, // transient: set when a milestone is hit
   cloudReady: false,
 
   // UI state
@@ -239,17 +276,49 @@ export const useStore = create((set, get) => ({
       const sub = state.submissions.find(s => s.id === submissionId)
       if (!sub || sub.approved) return state
       const task = state.tasks.find(t => t.id === sub.taskId)
+      const today = todayStr()
+
+      // Streak: advance on first approval of the day
+      let streakDays = state.streakDays
+      let lastStreakDate = state.lastStreakDate
+      let streakMilestone = null
+      let bonusGems = 0
+
+      if (lastStreakDate !== today) {
+        // First completion today — advance streak
+        if (isConsecutiveDay(lastStreakDate, today)) {
+          streakDays = streakDays + 1
+        } else if (!lastStreakDate) {
+          streakDays = 1
+        } else {
+          streakDays = 1 // streak broken, restart
+        }
+        lastStreakDate = today
+
+        // Check milestones
+        const milestone = STREAK_MILESTONES.find(m => m.days === streakDays)
+        if (milestone) {
+          bonusGems = milestone.bonus
+          streakMilestone = { days: milestone.days, bonus: milestone.bonus }
+        }
+      }
+
       return {
         submissions: state.submissions.map(s =>
           s.id === submissionId ? { ...s, approved: true } : s
         ),
-        gems: state.gems + (task?.gems ?? 0),
+        gems: state.gems + (task?.gems ?? 0) + bonusGems,
         completedToday: [...state.completedToday, sub.taskId],
         showConfetti: true,
+        streakDays,
+        lastStreakDate,
+        streakMilestone,
       }
     })
     setTimeout(() => debouncedSaveToCloud(get()), 0)
     setTimeout(() => set({ showConfetti: false }), 4000)
+    // Clear milestone notification after 5 seconds
+    setTimeout(() => set({ streakMilestone: null }), 5000)
   },
 
   rejectSubmission: (submissionId) => {
