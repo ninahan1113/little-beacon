@@ -128,8 +128,8 @@ const applyDailyReset = (data) => {
   if (dateChanged || hasStaleCompletions) {
     return {
       ...data,
-      completedToday: todayApprovedTaskIds, // only keep genuinely today's completions
-      submissions: cleanedSubmissions.filter(s => !s.approved || s.timestamp?.startsWith(today)),
+      completedToday: todayApprovedTaskIds,
+      submissions: cleanedSubmissions, // keep all submissions within 7 days for history
       lastActiveDate: today,
     }
   }
