@@ -266,10 +266,20 @@ export const useStore = create((set, get) => ({
       return {
         gems: state.gems - reward.cost,
         redeemedRewards: [...state.redeemedRewards, {
-          rewardId, timestamp: new Date().toISOString(),
+          id: genId(), rewardId, timestamp: new Date().toISOString(),
+          photoUrl: null, // can be added later for physical rewards
         }],
       }
     })
+    setTimeout(() => debouncedSaveToCloud(get()), 0)
+  },
+
+  addRedeemPhoto: (redeemId, photoUrl) => {
+    set((state) => ({
+      redeemedRewards: state.redeemedRewards.map(r =>
+        r.id === redeemId ? { ...r, photoUrl } : r
+      ),
+    }))
     setTimeout(() => debouncedSaveToCloud(get()), 0)
   },
 
